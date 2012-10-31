@@ -38,6 +38,7 @@ from fun import (
 import os
 import sys
 import re
+from shutil import copy2, rmtree # for WildRepo
 
 DefaultDBType = GitDB
 if sys.version_info[1] < 5:		# python 2.4 compatiblity
@@ -766,3 +767,44 @@ class Repo(object):
 		
 	def __repr__(self):
 		return '<git.Repo "%s">' % self.git_dir
+
+class WildRepo(Repo):
+	"""
+	WildRepo is an extension of the GitPython Repo class. It extends the
+	functionality to allow for dynamic repo configurations (e.g., repo
+	templates with std files and/or git hooks) in 'wild repos'; dynamically
+	created gitolite repos.
+	"""
+	def __init__(self, path=None):
+	  super(WildRepo, self).__init__(path)
+
+	def add(self, path):
+	  """
+	  Extends Repo.index.add by removing the requirement that the file to be
+	  added is already in the working directory. Instead it accepts a path
+	  and will make a copy of the file within the repository and then add
+	  it.
+	  """
+	  copy2(path, self.working_dir)
+	  name = os.path.basename(path)
+	  return self.index.add(items={name})
+
+	def commit(self, message=None):
+	  """
+	  A wrapper around Repo.index.commit. Doesn't currently add any
+	  additional functionality.
+	  """
+	  if message is not None:
+		return self.index.commit(message)
+	  else:
+		return ValueError("Commit message can not be None.")
+
+	def add_hook(self, path, hook):
+	  """
+	  Allows dynamic addition of Git hooks to wild repositories when they
+	  are created. The path to the hook is provided and it is symlinked into
+	  %working_dir%/hooks/.
+	  """
+	  hooks_path = "%s/hooks/%s" % (self.working_dir, hook)
+	  os.symlink(path, hooks_path)
+
